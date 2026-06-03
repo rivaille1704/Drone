@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>UAV Master Control AI</title>
+  
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="app-container">
+    <div id="sidebar">
+        <div class="menu-item active" onclick="switchTab('3d', this)"><b>3D</b><span>Cesium</span></div>
+        <div class="menu-item" onclick="switchTab('2d', this)"><b>2D</b><span>Map</span></div>
+        <div class="menu-item" onclick="switchTab('routes', this)"><i data-lucide="map" class="menu-icon"></i><span>Lộ trình</span></div>
+        <div class="menu-item" onclick="switchTab('gallery', this)"><i data-lucide="flame" class="menu-icon"></i><span>Phát hiện</span></div>
+    </div>
+
+    <div id="content-area">
+        <div id="tab-3d" class="tab-content active"><div id="cesiumContainer"></div></div>
+        <div id="tab-2d" class="tab-content"><div id="leafletContainer"></div></div>
+
+        <div id="tab-routes" class="tab-content">
+            <h2>Quản Lý Lộ Trình</h2>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="newRouteName" placeholder="Nhập tên lộ trình mới (Bắt buộc)...">
+                <button class="btn-green" onclick="startCreateRoute()"><i data-lucide="plus-circle" class="btn-icon"></i> Tạo Mới & Chọn Điểm</button>
+            </div>
+            <table class="route-table"><thead><tr><th>Tên</th><th>Điểm</th><th>Thao tác</th></tr></thead><tbody id="routeTableBody"></tbody></table>
+        </div>
+
+        <div id="tab-gallery" class="tab-content">
+            <h3 class="gallery-title">TRUNG TÂM GIÁM SÁT CHÁY RỪNG (AI YOLOv8)</h3>
+            <div class="gallery-header">
+                <div><i data-lucide="camera" style="width:16px; height:16px; margin-right:5px;"></i> Hình Ảnh Gốc (Raw)</div>
+                <div><i data-lucide="search" style="width:16px; height:16px; margin-right:5px;"></i> Kết Quả Phân Tích (AI)</div>
+                <div style="text-align:center;">Trạng Thái</div>
+            </div>
+            <div id="aiResultContainer">
+                <div style="text-align:center; padding:50px; color:#555; display: flex; flex-direction: column; align-items: center;">
+                    <i data-lucide="radio" style="width:40px; height:40px; margin-bottom:10px;"></i>
+                    Chưa có dữ liệu.
+                </div>
+            </div>
+        </div>
+
+        <div class="panel status-panel" id="mainControlPanel">
+            <h3><i data-lucide="helicopter" class="panel-icon"></i> UAV Monitor</h3>
+            <div class="stat-grid">
+              <span>Trạng thái:</span> <span class="stat-val" id="uavStatus">OFFLINE</span>
+              <span>Độ cao MSL:</span> <span class="stat-val" id="uavAlt">0 m</span>
+              <span>AGL (Đất):</span> <span class="stat-val" id="uavAGL">0 m</span>
+              <span>Pin:</span> <span class="stat-val" id="uavBatt">--%</span>
+              <span>Hướng bay:</span> <span class="stat-val" id="uavHeading">0°</span>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+              <button class="btn-green" onclick="safeTakeoff()"><i data-lucide="arrow-up" class="btn-icon"></i> Cất cánh</button>
+              <button class="btn-yellow" onclick="safeLand()"><i data-lucide="arrow-down" class="btn-icon"></i> Hạ cánh</button>
+            </div>
+            
+            <button class="btn-orange" style="width:100%; margin-top:5px;" onclick="emergencyStop()"><i data-lucide="stop-circle" class="btn-icon"></i> DỪNG LẠI (GIỮ ĐỘ CAO)</button>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px;">
+                <button class="btn-red" onclick="safeReturnHome()"><i data-lucide="home" class="btn-icon"></i> Về nhà</button>
+                <button class="btn-purple" onclick="capturePhoto()"><i data-lucide="camera" class="btn-icon"></i> Chụp & Quét AI</button>
+            </div>
+
+            <button type="button" class="collapsible-btn" onclick="toggleManualMode()"><i data-lucide="map-pin" class="btn-icon"></i> Chế độ Bay Thủ Công <span>▼</span></button>
+            <div class="collapsible-content" id="manualFlightBox">
+                <div style="margin-top:10px;">
+                    <div class="coord-inputs">
+                        <input type="number" id="cmdLat" placeholder="Lat">
+                        <input type="number" id="cmdLon" placeholder="Lon">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:5px;">
+                        <span>Độ cao bay (>= 50m):</span>
+                        <span id="targetAltDisplay" style="color:#00eaff; font-weight:bold;">50 m</span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+                        <input type="range" id="cmdAltSlider" min="50" max="500" value="50" style="flex-grow:1;" oninput="syncAltInput(this.value)">
+                        <input type="number" id="cmdAltInput" value="50" min="50" style="width:60px;" oninput="syncAltInput(this.value)">
+                    </div>
+
+                    <button class="btn-yellow" id="btnPickCmd" style="width:100%" onclick="togglePick('cmd')"><i data-lucide="target" class="btn-icon"></i> Chọn điểm trên bản đồ</button>
+                    <button class="btn-blue" style="width:100%" onclick="safeFlyTo()"><i data-lucide="rocket" class="btn-icon"></i> BAY NGAY</button>
+                </div>
+            </div>
+            <div style="margin-top:15px; font-size:11px; color:#aaa; border-top:1px solid #444; padding-top:10px;">
+                <label><input type="checkbox" id="toggleKMZ" checked> Hiện Rừng (KMZ)</label>
+                <div style="margin-top: 5px; border-top: 1px solid #444; padding-top: 5px;">
+                    <label><input type="checkbox" id="togglePolygon"> Vùng Trồng Rừng (VN2000)</label>
+                </div>
+            </div>
+            
+            <!-- DANH SÁCH ĐIỂM CHÁY -->
+            <div class="fire-alerts-panel">
+                <h4><i data-lucide="flame" style="width:14px; height:14px;"></i> Cảnh báo điểm cháy</h4>
+                <div id="fireAlertsList">
+                    <div style="text-align:center; color:#888; padding:10px;">Chưa có cảnh báo</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="picker-panel">
+            <h3><i data-lucide="edit" class="panel-icon"></i> Tạo Lộ Trình: <span id="editingRouteName" style="color:#ffaa00; font-weight:bold;"></span></h3>
+            <div class="coord-inputs"><input type="number" id="wpLat" readonly><input type="number" id="wpLon" readonly></div>
+            <input type="range" id="wpAlt" min="50" max="500" value="100" oninput="document.getElementById('zVal').innerText=this.value+' m'"><span id="zVal">100 m</span>
+            <button class="btn-yellow" onclick="togglePick('route')"><i data-lucide="mouse-pointer" class="btn-icon"></i> Chọn Điểm</button>
+            <button class="btn-blue" onclick="addPointToRoute()"><i data-lucide="plus" class="btn-icon"></i> Thêm</button>
+            <div id="tempPointsList" style="max-height:100px; overflow-y:auto; margin:5px 0; background:#222;"></div>
+            <div style="display:flex; gap:5px;"><button class="btn-red" onclick="cancelEditRoute()">Hủy</button><button class="btn-green" onclick="finishSaveRoute()"><i data-lucide="save" class="btn-icon"></i> Lưu</button></div>
+        </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  <script>
+    // Initialize Lucide icons after page load
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>
