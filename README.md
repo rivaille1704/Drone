@@ -20,6 +20,27 @@ A comprehensive 3D GIS web-based system designed to manage Unmanned Aerial Vehic
 - **Backend**: FastAPI (Python), SQLite
 - **AI Model**: Ultralytics YOLOv8
 
+## 💻 How to Run
+
+To run the system locally, you need to execute the backend server, the UAV simulator, and the frontend client concurrently.
+
+1. **Start the Backend Server:**
+   Open a terminal and run the main server script:
+```bash
+   python server.py
+   ```
+
+2. **Start the UAV Simulator:**
+   Open a new terminal window (keep the server running) and launch the simulator:
+```bash
+   python simulator.py
+   ```
+
+3. **Launch the Frontend Client:**
+   Open the `Index.html` file in your web browser. (Note: Using a local web server extension like "Live Server" in VS Code is highly recommended for the best experience).
+
+*⚠️ Note: All three components (Server, Simulator, and HTML Client) must be running simultaneously for the system to communicate, stream telemetry data, and process AI detection in real-time.*
+
 ## 👥 Contributors (Group 7)
 
 - Le Hoang Viet
