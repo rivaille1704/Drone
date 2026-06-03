@@ -40,10 +40,3 @@ To run the system locally, you need to execute the backend server, the UAV simul
    Open the `Index.html` file in your web browser. (Note: Using a local web server extension like "Live Server" in VS Code is highly recommended for the best experience).
 
 *⚠️ Note: All three components (Server, Simulator, and HTML Client) must be running simultaneously for the system to communicate, stream telemetry data, and process AI detection in real-time.*
-
-## 👥 Contributors (Group 7)
-
-- Le Hoang Viet
-- Trinh Thi Phuong Quynh
-- Doan Minh Tuan
-- Nguyen Hieu Thien Tuong
